@@ -32,9 +32,13 @@
 
         <form id="create-form" class="stack">
           <h2>Add Unit</h2>
+          <select id="category" name="category">
+            <option value="Unit">Unit</option>
+            <option value="Character">Character</option>
+          </select>
           <input id="name" name="name" placeholder="Unit name (e.g. Plague Marines)" required />
           <input id="modelCount" name="modelCount" type="number" min="1" max="500" value="5" required />
-          <div class="inline-grid">
+          <div id="command-fields" class="inline-grid">
             <label>Champion <input id="champion" type="number" min="0" value="1" /></label>
             <label>Musician <input id="musician" type="number" min="0" value="1" /></label>
             <label>Banner <input id="bannerBearer" type="number" min="0" value="1" /></label>
@@ -59,10 +63,10 @@
 
     <template id="card-template">
       <article class="card">
-        <img class="card-image" alt="Model image" />
         <div class="card-content">
           <h3 class="model-name"></h3>
           <p class="muted model-meta"></p>
+          <p class="muted category-meta"></p>
           <p class="muted command-meta"></p>
           <label>
             State
@@ -74,7 +78,6 @@
               <option>Painted</option>
             </select>
           </label>
-          <button class="refresh-image" type="button">Refresh Image</button>
         </div>
       </article>
     </template>

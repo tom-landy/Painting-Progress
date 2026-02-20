@@ -4,20 +4,17 @@ A secure, public-shareable web app for tracking Warhammer model painting progres
 
 ## Features
 
-- Add units manually with instant save (image lookup happens in background)
+- Add units manually with instant save
 - Global Old World army selector that filters visible units
 - Mass import from pasted Old World Builder text
+- Unit categories: `Unit` and `Character`
 - Track model/unit states:
   - `Unbuilt`
   - `Build`
   - `Sprayed`
   - `Undercoated`
   - `Painted`
-- Optional command units (Champion, Musician, Banner Bearer)
-- Auto-locate model images via server-side search:
-  - Warhammer.com page search + `og:image` extraction
-  - General web image search fallback
-  - Wikimedia fallback
+- Optional command details for units (Champion, Musician, Banner Bearer)
 - Security basics for public hosting:
   - `helmet`
   - rate limiting

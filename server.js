@@ -16,16 +16,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'models.json');
 
 const states = ['Unbuilt', 'Build', 'Sprayed', 'Undercoated', 'Painted'];
-const allowedImageHostSuffixes = [
-  'wikimedia.org',
-  'wikipedia.org',
-  'warhammer.com',
-  'warhammer-community.com',
-  'games-workshop.com',
-  'images.ctfassets.net',
-  'cdn.shopify.com',
-  'scene7.com'
-];
+const categories = ['Unit', 'Character'];
 
 const commandSchema = z
   .object({
@@ -38,6 +29,7 @@ const commandSchema = z
 const modelInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   faction: z.string().trim().max(120).optional().default(''),
+  category: z.enum(categories).optional().default('Unit'),
   modelCount: z.number().int().min(1).max(500),
   command: commandSchema.optional().default({ champion: 1, musician: 1, bannerBearer: 1 }),
   state: z.enum(states).optional().default('Unbuilt')
@@ -90,6 +82,23 @@ async function ensureDataFile() {
   }
 }
 
+async function writeModels(models) {
+  await ensureDataFile();
+  await fs.writeFile(DATA_FILE, JSON.stringify(models, null, 2), 'utf8');
+}
+
+function normalizeCommand(modelCategory, modelCommand) {
+  if (modelCategory === 'Character') {
+    return { champion: 0, musician: 0, bannerBearer: 0 };
+  }
+
+  return {
+    champion: Number.isInteger(modelCommand?.champion) && modelCommand.champion >= 0 ? modelCommand.champion : 1,
+    musician: Number.isInteger(modelCommand?.musician) && modelCommand.musician >= 0 ? modelCommand.musician : 1,
+    bannerBearer: Number.isInteger(modelCommand?.bannerBearer) && modelCommand.bannerBearer >= 0 ? modelCommand.bannerBearer : 1
+  };
+}
+
 async function readModels() {
   await ensureDataFile();
   const text = await fs.readFile(DATA_FILE, 'utf8');
@@ -100,22 +109,18 @@ async function readModels() {
     let hasChanges = false;
     const normalized = parsed.map((item) => {
       const model = item && typeof item === 'object' ? item : {};
+      const safeCategory = categories.includes(model.category) ? model.category : 'Unit';
       const safeState = states.includes(model.state) ? model.state : 'Unbuilt';
-      const safeCommand = {
-        champion: Number.isInteger(model?.command?.champion) && model.command.champion >= 0 ? model.command.champion : 1,
-        musician: Number.isInteger(model?.command?.musician) && model.command.musician >= 0 ? model.command.musician : 1,
-        bannerBearer:
-          Number.isInteger(model?.command?.bannerBearer) && model.command.bannerBearer >= 0 ? model.command.bannerBearer : 1
-      };
+      const safeCommand = normalizeCommand(safeCategory, model.command);
 
       const normalizedModel = {
         id: typeof model.id === 'string' && model.id ? model.id : nanoid(),
         name: typeof model.name === 'string' && model.name ? model.name : 'Unknown Unit',
         faction: typeof model.faction === 'string' ? model.faction : '',
+        category: safeCategory,
         modelCount: Number.isInteger(model.modelCount) && model.modelCount > 0 ? model.modelCount : 1,
         command: safeCommand,
         state: safeState,
-        imageUrl: typeof model.imageUrl === 'string' ? model.imageUrl : '',
         createdAt: typeof model.createdAt === 'string' ? model.createdAt : new Date().toISOString(),
         updatedAt: typeof model.updatedAt === 'string' ? model.updatedAt : new Date().toISOString()
       };
@@ -125,6 +130,7 @@ async function readModels() {
         normalizedModel.state !== model.state ||
         normalizedModel.modelCount !== model.modelCount ||
         normalizedModel.faction !== model.faction ||
+        normalizedModel.category !== model.category ||
         JSON.stringify(normalizedModel.command) !== JSON.stringify(model.command)
       ) {
         hasChanges = true;
@@ -143,250 +149,22 @@ async function readModels() {
   }
 }
 
-async function writeModels(models) {
-  await ensureDataFile();
-  await fs.writeFile(DATA_FILE, JSON.stringify(models, null, 2), 'utf8');
-}
-
-function sanitizeForSearch(value) {
-  return value.replace(/[^a-zA-Z0-9 '\-]/g, '').trim();
-}
-
-function hasAllowedImageHost(hostname) {
-  return allowedImageHostSuffixes.some((suffix) => hostname === suffix || hostname.endsWith(`.${suffix}`));
-}
-
-function extractMetaImage(html) {
-  const og =
-    html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i) ||
-    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i);
-  if (og?.[1]) return og[1];
-
-  const tw =
-    html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i) ||
-    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["'][^>]*>/i);
-  if (tw?.[1]) return tw[1];
-
-  return '';
-}
-
-function searchVariants(name, faction = '') {
-  const raw = `${name} ${faction}`.trim();
-  const cleaned = sanitizeForSearch(raw).toLowerCase();
-  const deMerged = cleaned.replace(/\bseaguard\b/g, 'sea guard');
-  const deHyphen = deMerged.replace(/-/g, ' ');
-  const compact = deHyphen.replace(/\s+/g, ' ').trim();
-
-  const variants = new Set();
-  if (compact) variants.add(`${compact} warhammer the old world`);
-  if (compact) variants.add(`${compact} miniatures`);
-  if (compact) variants.add(`${compact} old world`);
-  if (compact) variants.add(`${compact} warhammer.com`);
-  return [...variants];
-}
-
-async function findWikipediaImage(query) {
-  const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=1&namespace=0&format=json`;
-  const searchRes = await fetch(searchUrl, {
-    headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
-  });
-  if (!searchRes.ok) return '';
-
-  const searchJson = await searchRes.json();
-  const title = searchJson?.[1]?.[0];
-  if (!title) return '';
-
-  const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
-  const summaryRes = await fetch(summaryUrl, {
-    headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
-  });
-  if (!summaryRes.ok) return '';
-
-  const summaryJson = await summaryRes.json();
-  return summaryJson?.thumbnail?.source || '';
-}
-
-async function findWarhammerImage(query) {
-  try {
-    const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(`site:warhammer.com ${query}`)}`;
-    const ddgRes = await fetch(ddgUrl, {
-      headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
-    });
-    if (!ddgRes.ok) return '';
-
-    const html = await ddgRes.text();
-    const urls = [];
-    for (const match of html.matchAll(/uddg=([^"&]+)/g)) {
-      try {
-        const decoded = decodeURIComponent(match[1]);
-        const parsed = new URL(decoded);
-        if (parsed.hostname === 'warhammer.com' || parsed.hostname.endsWith('.warhammer.com')) {
-          urls.push(parsed.toString());
-        }
-      } catch {
-        // Ignore malformed links.
-      }
-      if (urls.length >= 5) break;
-    }
-
-    for (const pageUrl of urls) {
-      const pageRes = await fetch(pageUrl, {
-        headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
-      });
-      if (!pageRes.ok) continue;
-      const pageHtml = await pageRes.text();
-      const image = extractMetaImage(pageHtml);
-      if (!image) continue;
-
-      try {
-        const parsed = new URL(image, pageUrl);
-        if (hasAllowedImageHost(parsed.hostname)) return parsed.toString();
-      } catch {
-        // Ignore malformed image URLs.
-      }
-    }
-  } catch {
-    return '';
-  }
-
-  return '';
-}
-
-async function findDuckDuckGoImage(query) {
-  try {
-    const bootstrapUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`;
-    const bootstrapRes = await fetch(bootstrapUrl, {
-      headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
-    });
-    if (!bootstrapRes.ok) return '';
-    const bootstrapHtml = await bootstrapRes.text();
-
-    const vqdMatch = bootstrapHtml.match(/vqd=['"]([^'"]+)['"]/i) || bootstrapHtml.match(/"vqd":"([^"]+)"/i);
-    const vqd = vqdMatch?.[1];
-    if (!vqd) return '';
-
-    const apiUrl = `https://duckduckgo.com/i.js?l=us-en&o=json&p=1&q=${encodeURIComponent(query)}&vqd=${encodeURIComponent(vqd)}`;
-    const imageRes = await fetch(apiUrl, {
-      headers: {
-        'User-Agent': 'painting-progress-app/1.0 (render)',
-        Referer: 'https://duckduckgo.com/'
-      }
-    });
-    if (!imageRes.ok) return '';
-    const imageJson = await imageRes.json();
-    const results = Array.isArray(imageJson?.results) ? imageJson.results : [];
-
-    for (const result of results) {
-      const candidate = result?.image || result?.thumbnail || '';
-      if (!candidate || typeof candidate !== 'string') continue;
-      try {
-        const parsed = new URL(candidate);
-        if (!['http:', 'https:'].includes(parsed.protocol)) continue;
-        return parsed.toString();
-      } catch {
-        // Ignore malformed URLs.
-      }
-    }
-  } catch {
-    return '';
-  }
-
-  return '';
-}
-
-async function findModelImage(name, faction = '') {
-  try {
-    for (const query of searchVariants(name, faction)) {
-      const warhammerImage = await findWarhammerImage(query);
-      if (warhammerImage) return warhammerImage;
-
-      const generalImage = await findDuckDuckGoImage(query);
-      if (generalImage) return generalImage;
-
-      const wikiImage = await findWikipediaImage(query);
-      if (wikiImage) return wikiImage;
-    }
-  } catch {
-    return '';
-  }
-
-  return '';
-}
-
 function toStoredModel(input) {
   return {
     id: nanoid(),
     name: input.name,
     faction: input.faction,
+    category: input.category,
     modelCount: input.modelCount,
-    command: input.command,
+    command: normalizeCommand(input.category, input.command),
     state: input.state,
-    imageUrl: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
 }
 
-function enqueueImageLookup(modelId) {
-  setTimeout(async () => {
-    try {
-      const models = await readModels();
-      const index = models.findIndex((m) => m.id === modelId);
-      if (index === -1) return;
-      if (models[index].imageUrl) return;
-
-      const imageUrl = await findModelImage(models[index].name, models[index].faction);
-      if (!imageUrl) return;
-
-      models[index].imageUrl = imageUrl;
-      models[index].updatedAt = new Date().toISOString();
-      await writeModels(models);
-    } catch (err) {
-      console.error('Background image lookup failed:', err?.message || err);
-    }
-  }, 0);
-}
-
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
-});
-
-app.get('/api/image-proxy', async (req, res, next) => {
-  try {
-    const rawUrl = typeof req.query.url === 'string' ? req.query.url : '';
-    if (!rawUrl) return res.status(400).json({ error: 'Missing image URL' });
-
-    let target;
-    try {
-      target = new URL(rawUrl);
-    } catch {
-      return res.status(400).json({ error: 'Invalid image URL' });
-    }
-
-    if (!['http:', 'https:'].includes(target.protocol)) {
-      return res.status(400).json({ error: 'Invalid image protocol' });
-    }
-
-    if (!hasAllowedImageHost(target.hostname)) {
-      return res.status(403).json({ error: 'Image host not allowed' });
-    }
-
-    const upstream = await fetch(target.toString(), {
-      headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
-    });
-    if (!upstream.ok) {
-      return res.status(404).json({ error: 'Image not found' });
-    }
-
-    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
-    res.set('Content-Type', contentType);
-    res.set('Cache-Control', 'public, max-age=86400');
-
-    const buffer = Buffer.from(await upstream.arrayBuffer());
-    return res.send(buffer);
-  } catch (err) {
-    return next(err);
-  }
 });
 
 app.get('/api/models', async (_req, res, next) => {
@@ -409,7 +187,6 @@ app.post('/api/models', async (req, res, next) => {
     const model = toStoredModel(parsed.data);
     models.push(model);
     await writeModels(models);
-    enqueueImageLookup(model.id);
 
     return res.status(201).json(model);
   } catch (err) {
@@ -425,18 +202,10 @@ app.post('/api/models/import', async (req, res, next) => {
     }
 
     const existing = await readModels();
-    const created = [];
-
-    for (const input of parsed.data) {
-      const model = toStoredModel(input);
-      created.push(model);
-    }
+    const created = parsed.data.map((input) => toStoredModel(input));
 
     const merged = [...existing, ...created];
     await writeModels(merged);
-    for (const model of created) {
-      enqueueImageLookup(model.id);
-    }
     return res.status(201).json({ created: created.length, models: created });
   } catch (err) {
     return next(err);
@@ -458,26 +227,6 @@ app.patch('/api/models/:id/state', async (req, res, next) => {
     }
 
     models[index].state = parsed.data.state;
-    models[index].updatedAt = new Date().toISOString();
-    await writeModels(models);
-
-    return res.json(models[index]);
-  } catch (err) {
-    return next(err);
-  }
-});
-
-app.post('/api/models/:id/refresh-image', async (req, res, next) => {
-  try {
-    const id = req.params.id;
-    const models = await readModels();
-    const index = models.findIndex((m) => m.id === id);
-    if (index === -1) {
-      return res.status(404).json({ error: 'Model not found' });
-    }
-
-    const imageUrl = await findModelImage(models[index].name, models[index].faction);
-    models[index].imageUrl = imageUrl;
     models[index].updatedAt = new Date().toISOString();
     await writeModels(models);
 
