@@ -207,54 +207,62 @@ async function findWikipediaImage(query) {
 }
 
 async function findWarhammerImage(query) {
-  const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(`site:warhammer.com ${query}`)}`;
-  const ddgRes = await fetch(ddgUrl, {
-    headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
-  });
-  if (!ddgRes.ok) return '';
-
-  const html = await ddgRes.text();
-  const urls = [];
-  for (const match of html.matchAll(/uddg=([^"&]+)/g)) {
-    try {
-      const decoded = decodeURIComponent(match[1]);
-      const parsed = new URL(decoded);
-      if (parsed.hostname === 'warhammer.com' || parsed.hostname.endsWith('.warhammer.com')) {
-        urls.push(parsed.toString());
-      }
-    } catch {
-      // Ignore malformed links.
-    }
-    if (urls.length >= 5) break;
-  }
-
-  for (const pageUrl of urls) {
-    const pageRes = await fetch(pageUrl, {
+  try {
+    const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(`site:warhammer.com ${query}`)}`;
+    const ddgRes = await fetch(ddgUrl, {
       headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
     });
-    if (!pageRes.ok) continue;
-    const pageHtml = await pageRes.text();
-    const image = extractMetaImage(pageHtml);
-    if (!image) continue;
+    if (!ddgRes.ok) return '';
 
-    try {
-      const parsed = new URL(image, pageUrl);
-      if (hasAllowedImageHost(parsed.hostname)) return parsed.toString();
-    } catch {
-      // Ignore malformed image URLs.
+    const html = await ddgRes.text();
+    const urls = [];
+    for (const match of html.matchAll(/uddg=([^"&]+)/g)) {
+      try {
+        const decoded = decodeURIComponent(match[1]);
+        const parsed = new URL(decoded);
+        if (parsed.hostname === 'warhammer.com' || parsed.hostname.endsWith('.warhammer.com')) {
+          urls.push(parsed.toString());
+        }
+      } catch {
+        // Ignore malformed links.
+      }
+      if (urls.length >= 5) break;
     }
+
+    for (const pageUrl of urls) {
+      const pageRes = await fetch(pageUrl, {
+        headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
+      });
+      if (!pageRes.ok) continue;
+      const pageHtml = await pageRes.text();
+      const image = extractMetaImage(pageHtml);
+      if (!image) continue;
+
+      try {
+        const parsed = new URL(image, pageUrl);
+        if (hasAllowedImageHost(parsed.hostname)) return parsed.toString();
+      } catch {
+        // Ignore malformed image URLs.
+      }
+    }
+  } catch {
+    return '';
   }
 
   return '';
 }
 
 async function findModelImage(name, faction = '') {
-  for (const query of searchVariants(name, faction)) {
-    const warhammerImage = await findWarhammerImage(query);
-    if (warhammerImage) return warhammerImage;
+  try {
+    for (const query of searchVariants(name, faction)) {
+      const warhammerImage = await findWarhammerImage(query);
+      if (warhammerImage) return warhammerImage;
 
-    const wikiImage = await findWikipediaImage(query);
-    if (wikiImage) return wikiImage;
+      const wikiImage = await findWikipediaImage(query);
+      if (wikiImage) return wikiImage;
+    }
+  } catch {
+    return '';
   }
 
   return '';
