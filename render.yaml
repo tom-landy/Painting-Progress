@@ -3,7 +3,6 @@ services:
     name: painting-progress
     env: node
     plan: starter
-    rootDir: Painting Progress
     buildCommand: npm install
     startCommand: npm start
     envVars:
