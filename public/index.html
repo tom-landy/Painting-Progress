@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painting Progress</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="panel">
+        <h1>Painting Progress</h1>
+        <p>Track your Warhammer units and publish progress states.</p>
+
+        <form id="create-form" class="stack">
+          <h2>Add Unit</h2>
+          <input id="name" name="name" placeholder="Unit name (e.g. Plague Marines)" required />
+          <input id="faction" name="faction" placeholder="Faction (optional)" />
+          <input id="modelCount" name="modelCount" type="number" min="1" max="500" value="5" required />
+          <div class="inline-grid">
+            <label>Champion <input id="champion" type="number" min="0" value="0" /></label>
+            <label>Musician <input id="musician" type="number" min="0" value="0" /></label>
+            <label>Banner <input id="bannerBearer" type="number" min="0" value="0" /></label>
+          </div>
+          <button type="submit">Add Unit</button>
+        </form>
+
+        <section class="stack">
+          <h2>Import JSON</h2>
+          <textarea id="import-json" rows="9" placeholder='Paste JSON array here'></textarea>
+          <button id="import-btn" type="button">Import Units</button>
+        </section>
+
+        <p id="status" class="status"></p>
+      </section>
+
+      <section class="panel wide">
+        <h2>Published Progress</h2>
+        <div id="cards" class="cards"></div>
+      </section>
+    </main>
+
+    <template id="card-template">
+      <article class="card">
+        <img class="card-image" alt="Model image" />
+        <div class="card-content">
+          <h3 class="model-name"></h3>
+          <p class="muted model-meta"></p>
+          <p class="muted command-meta"></p>
+          <label>
+            State
+            <select class="state-select">
+              <option>Unbuilt</option>
+              <option>Build</option>
+              <option>Sprayed</option>
+              <option>Undercoated</option>
+              <option>Painted</option>
+            </select>
+          </label>
+          <button class="refresh-image" type="button">Refresh Image</button>
+        </div>
+      </article>
+    </template>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
