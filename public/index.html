@@ -15,12 +15,28 @@
         <form id="create-form" class="stack">
           <h2>Add Unit</h2>
           <input id="name" name="name" placeholder="Unit name (e.g. Plague Marines)" required />
-          <input id="faction" name="faction" placeholder="Faction (optional)" />
+          <select id="faction" name="faction">
+            <option value="">Select Old World Army</option>
+            <option>Empire of Man</option>
+            <option>Dwarfen Mountain Holds</option>
+            <option>Kingdom of Bretonnia</option>
+            <option>Wood Elf Realms</option>
+            <option>High Elf Realms</option>
+            <option>Orc and Goblin Tribes</option>
+            <option>Warriors of Chaos</option>
+            <option>Beastmen Brayherds</option>
+            <option>Tomb Kings of Khemri</option>
+            <option>Daemons of Chaos</option>
+            <option>Vampire Counts</option>
+            <option>Skaven</option>
+            <option>Dark Elves</option>
+            <option>Ogre Kingdoms</option>
+          </select>
           <input id="modelCount" name="modelCount" type="number" min="1" max="500" value="5" required />
           <div class="inline-grid">
-            <label>Champion <input id="champion" type="number" min="0" value="0" /></label>
-            <label>Musician <input id="musician" type="number" min="0" value="0" /></label>
-            <label>Banner <input id="bannerBearer" type="number" min="0" value="0" /></label>
+            <label>Champion <input id="champion" type="number" min="0" value="1" /></label>
+            <label>Musician <input id="musician" type="number" min="0" value="1" /></label>
+            <label>Banner <input id="bannerBearer" type="number" min="0" value="1" /></label>
           </div>
           <button type="submit">Add Unit</button>
         </form>

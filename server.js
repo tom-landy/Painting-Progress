@@ -29,17 +29,17 @@ const allowedImageHostSuffixes = [
 
 const commandSchema = z
   .object({
-    champion: z.number().int().min(0).default(0),
-    musician: z.number().int().min(0).default(0),
-    bannerBearer: z.number().int().min(0).default(0)
+    champion: z.number().int().min(0).default(1),
+    musician: z.number().int().min(0).default(1),
+    bannerBearer: z.number().int().min(0).default(1)
   })
-  .default({ champion: 0, musician: 0, bannerBearer: 0 });
+  .default({ champion: 1, musician: 1, bannerBearer: 1 });
 
 const modelInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   faction: z.string().trim().max(120).optional().default(''),
   modelCount: z.number().int().min(1).max(500),
-  command: commandSchema.optional().default({ champion: 0, musician: 0, bannerBearer: 0 }),
+  command: commandSchema.optional().default({ champion: 1, musician: 1, bannerBearer: 1 }),
   state: z.enum(states).optional().default('Unbuilt')
 });
 
@@ -102,10 +102,10 @@ async function readModels() {
       const model = item && typeof item === 'object' ? item : {};
       const safeState = states.includes(model.state) ? model.state : 'Unbuilt';
       const safeCommand = {
-        champion: Number.isInteger(model?.command?.champion) && model.command.champion >= 0 ? model.command.champion : 0,
-        musician: Number.isInteger(model?.command?.musician) && model.command.musician >= 0 ? model.command.musician : 0,
+        champion: Number.isInteger(model?.command?.champion) && model.command.champion >= 0 ? model.command.champion : 1,
+        musician: Number.isInteger(model?.command?.musician) && model.command.musician >= 0 ? model.command.musician : 1,
         bannerBearer:
-          Number.isInteger(model?.command?.bannerBearer) && model.command.bannerBearer >= 0 ? model.command.bannerBearer : 0
+          Number.isInteger(model?.command?.bannerBearer) && model.command.bannerBearer >= 0 ? model.command.bannerBearer : 1
       };
 
       const normalizedModel = {
@@ -178,9 +178,9 @@ function searchVariants(name, faction = '') {
   const compact = deHyphen.replace(/\s+/g, ' ').trim();
 
   const variants = new Set();
-  if (compact) variants.add(`${compact} warhammer`);
+  if (compact) variants.add(`${compact} warhammer the old world`);
   if (compact) variants.add(`${compact} miniatures`);
-  if (compact) variants.add(`${compact} age of sigmar`);
+  if (compact) variants.add(`${compact} old world`);
   if (compact) variants.add(`${compact} warhammer.com`);
   return [...variants];
 }
@@ -282,6 +282,26 @@ function toStoredModel(input) {
   };
 }
 
+function enqueueImageLookup(modelId) {
+  setTimeout(async () => {
+    try {
+      const models = await readModels();
+      const index = models.findIndex((m) => m.id === modelId);
+      if (index === -1) return;
+      if (models[index].imageUrl) return;
+
+      const imageUrl = await findModelImage(models[index].name, models[index].faction);
+      if (!imageUrl) return;
+
+      models[index].imageUrl = imageUrl;
+      models[index].updatedAt = new Date().toISOString();
+      await writeModels(models);
+    } catch (err) {
+      console.error('Background image lookup failed:', err?.message || err);
+    }
+  }, 0);
+}
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
@@ -342,9 +362,9 @@ app.post('/api/models', async (req, res, next) => {
 
     const models = await readModels();
     const model = toStoredModel(parsed.data);
-    model.imageUrl = await findModelImage(model.name, model.faction);
     models.push(model);
     await writeModels(models);
+    enqueueImageLookup(model.id);
 
     return res.status(201).json(model);
   } catch (err) {
@@ -364,12 +384,14 @@ app.post('/api/models/import', async (req, res, next) => {
 
     for (const input of parsed.data) {
       const model = toStoredModel(input);
-      model.imageUrl = await findModelImage(model.name, model.faction);
       created.push(model);
     }
 
     const merged = [...existing, ...created];
     await writeModels(merged);
+    for (const model of created) {
+      enqueueImageLookup(model.id);
+    }
     return res.status(201).json({ created: created.length, models: created });
   } catch (err) {
     return next(err);

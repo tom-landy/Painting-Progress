@@ -105,9 +105,9 @@ createForm.addEventListener('submit', async (event) => {
     faction: document.getElementById('faction').value.trim(),
     modelCount: Number(document.getElementById('modelCount').value),
     command: {
-      champion: Number(document.getElementById('champion').value || 0),
-      musician: Number(document.getElementById('musician').value || 0),
-      bannerBearer: Number(document.getElementById('bannerBearer').value || 0)
+      champion: Number(document.getElementById('champion').value || 1),
+      musician: Number(document.getElementById('musician').value || 1),
+      bannerBearer: Number(document.getElementById('bannerBearer').value || 1)
     }
   };
 
@@ -116,10 +116,14 @@ createForm.addEventListener('submit', async (event) => {
       method: 'POST',
       body: JSON.stringify(payload)
     });
-    setStatus(`Added ${created.name}`);
+    setStatus(`Added ${created.name}. Looking up image in background...`);
     createForm.reset();
     document.getElementById('modelCount').value = 5;
+    document.getElementById('champion').value = 1;
+    document.getElementById('musician').value = 1;
+    document.getElementById('bannerBearer').value = 1;
     await loadModels();
+    setTimeout(loadModels, 3000);
   } catch (err) {
     setStatus(err.message, true);
   }
@@ -148,3 +152,4 @@ importBtn.addEventListener('click', async () => {
 });
 
 loadModels();
+setInterval(loadModels, 15000);
