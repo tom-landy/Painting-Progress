@@ -75,6 +75,11 @@ function renderCards(models) {
         imageEl.src = displayImageUrl(updated.imageUrl);
         setStatus(`Refreshed image for ${updated.name}`);
       } catch (err) {
+        if ((err.message || '').toLowerCase().includes('model not found')) {
+          await loadModels();
+          setStatus('Model changed on server. Reloaded list, please try again.', true);
+          return;
+        }
         setStatus(err.message, true);
       }
     });

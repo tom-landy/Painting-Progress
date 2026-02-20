@@ -12,7 +12,9 @@ A secure, public-shareable web app for tracking Warhammer model painting progres
   - `Undercoated`
   - `Painted`
 - Optional command units (Champion, Musician, Banner Bearer)
-- Auto-locate model images via server-side Wikimedia lookup
+- Auto-locate model images via server-side search:
+  - Warhammer.com page search + `og:image` extraction
+  - Wikimedia fallback
 - Security basics for public hosting:
   - `helmet`
   - rate limiting

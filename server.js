@@ -16,7 +16,16 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'models.json');
 
 const states = ['Unbuilt', 'Build', 'Sprayed', 'Undercoated', 'Painted'];
-const allowedImageHosts = new Set(['upload.wikimedia.org', 'images.wikimedia.org']);
+const allowedImageHostSuffixes = [
+  'wikimedia.org',
+  'wikipedia.org',
+  'warhammer.com',
+  'warhammer-community.com',
+  'games-workshop.com',
+  'images.ctfassets.net',
+  'cdn.shopify.com',
+  'scene7.com'
+];
 
 const commandSchema = z
   .object({
@@ -143,10 +152,40 @@ function sanitizeForSearch(value) {
   return value.replace(/[^a-zA-Z0-9 '\-]/g, '').trim();
 }
 
-async function findModelImage(name, faction = '') {
-  const query = sanitizeForSearch(`${name} ${faction} warhammer`.trim());
-  if (!query) return '';
+function hasAllowedImageHost(hostname) {
+  return allowedImageHostSuffixes.some((suffix) => hostname === suffix || hostname.endsWith(`.${suffix}`));
+}
 
+function extractMetaImage(html) {
+  const og =
+    html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i) ||
+    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i);
+  if (og?.[1]) return og[1];
+
+  const tw =
+    html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i) ||
+    html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["'][^>]*>/i);
+  if (tw?.[1]) return tw[1];
+
+  return '';
+}
+
+function searchVariants(name, faction = '') {
+  const raw = `${name} ${faction}`.trim();
+  const cleaned = sanitizeForSearch(raw).toLowerCase();
+  const deMerged = cleaned.replace(/\bseaguard\b/g, 'sea guard');
+  const deHyphen = deMerged.replace(/-/g, ' ');
+  const compact = deHyphen.replace(/\s+/g, ' ').trim();
+
+  const variants = new Set();
+  if (compact) variants.add(`${compact} warhammer`);
+  if (compact) variants.add(`${compact} miniatures`);
+  if (compact) variants.add(`${compact} age of sigmar`);
+  if (compact) variants.add(`${compact} warhammer.com`);
+  return [...variants];
+}
+
+async function findWikipediaImage(query) {
   const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=1&namespace=0&format=json`;
   const searchRes = await fetch(searchUrl, {
     headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
@@ -165,6 +204,60 @@ async function findModelImage(name, faction = '') {
 
   const summaryJson = await summaryRes.json();
   return summaryJson?.thumbnail?.source || '';
+}
+
+async function findWarhammerImage(query) {
+  const ddgUrl = `https://duckduckgo.com/html/?q=${encodeURIComponent(`site:warhammer.com ${query}`)}`;
+  const ddgRes = await fetch(ddgUrl, {
+    headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
+  });
+  if (!ddgRes.ok) return '';
+
+  const html = await ddgRes.text();
+  const urls = [];
+  for (const match of html.matchAll(/uddg=([^"&]+)/g)) {
+    try {
+      const decoded = decodeURIComponent(match[1]);
+      const parsed = new URL(decoded);
+      if (parsed.hostname === 'warhammer.com' || parsed.hostname.endsWith('.warhammer.com')) {
+        urls.push(parsed.toString());
+      }
+    } catch {
+      // Ignore malformed links.
+    }
+    if (urls.length >= 5) break;
+  }
+
+  for (const pageUrl of urls) {
+    const pageRes = await fetch(pageUrl, {
+      headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
+    });
+    if (!pageRes.ok) continue;
+    const pageHtml = await pageRes.text();
+    const image = extractMetaImage(pageHtml);
+    if (!image) continue;
+
+    try {
+      const parsed = new URL(image, pageUrl);
+      if (hasAllowedImageHost(parsed.hostname)) return parsed.toString();
+    } catch {
+      // Ignore malformed image URLs.
+    }
+  }
+
+  return '';
+}
+
+async function findModelImage(name, faction = '') {
+  for (const query of searchVariants(name, faction)) {
+    const warhammerImage = await findWarhammerImage(query);
+    if (warhammerImage) return warhammerImage;
+
+    const wikiImage = await findWikipediaImage(query);
+    if (wikiImage) return wikiImage;
+  }
+
+  return '';
 }
 
 function toStoredModel(input) {
@@ -201,7 +294,7 @@ app.get('/api/image-proxy', async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid image protocol' });
     }
 
-    if (!allowedImageHosts.has(target.hostname)) {
+    if (!hasAllowedImageHost(target.hostname)) {
       return res.status(403).json({ error: 'Image host not allowed' });
     }
 
