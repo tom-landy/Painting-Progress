@@ -3,8 +3,11 @@ const cardsEl = document.getElementById('cards');
 const template = document.getElementById('card-template');
 
 const createForm = document.getElementById('create-form');
-const importBtn = document.getElementById('import-btn');
-const importJsonEl = document.getElementById('import-json');
+const massImportBtn = document.getElementById('mass-import-btn');
+const massImportTextEl = document.getElementById('mass-import-text');
+const armyFilterEl = document.getElementById('army-filter');
+
+let allModels = [];
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -17,7 +20,20 @@ function commandText(command) {
 
 function displayImageUrl(imageUrl) {
   if (!imageUrl) return '/no-image.svg';
+  return imageUrl;
+}
+
+function proxyImageUrl(imageUrl) {
   return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+}
+
+function setModelImage(imageEl, imageUrl) {
+  const primary = displayImageUrl(imageUrl);
+  imageEl.dataset.primary = primary;
+  imageEl.dataset.proxy = imageUrl ? proxyImageUrl(imageUrl) : '';
+  imageEl.dataset.fallback = '/no-image.svg';
+  imageEl.dataset.stage = 'primary';
+  imageEl.src = primary;
 }
 
 async function request(path, options = {}) {
@@ -34,6 +50,12 @@ async function request(path, options = {}) {
   return res.json();
 }
 
+function filteredModels() {
+  const selectedArmy = armyFilterEl.value;
+  if (!selectedArmy || selectedArmy === 'ALL') return allModels;
+  return allModels.filter((model) => model.faction === selectedArmy);
+}
+
 function renderCards(models) {
   cardsEl.innerHTML = '';
 
@@ -48,12 +70,20 @@ function renderCards(models) {
     const refreshBtn = fragment.querySelector('.refresh-image');
 
     card.dataset.id = model.id;
-    imageEl.src = displayImageUrl(model.imageUrl);
+    setModelImage(imageEl, model.imageUrl);
     imageEl.addEventListener('error', () => {
-      imageEl.src = '/no-image.svg';
+      const stage = imageEl.dataset.stage;
+      if (stage === 'primary' && imageEl.dataset.proxy) {
+        imageEl.dataset.stage = 'proxy';
+        imageEl.src = imageEl.dataset.proxy;
+        return;
+      }
+      imageEl.dataset.stage = 'fallback';
+      imageEl.src = imageEl.dataset.fallback;
     });
+
     nameEl.textContent = model.name;
-    metaEl.textContent = `${model.faction || 'Unknown faction'} | Models: ${model.modelCount}`;
+    metaEl.textContent = `${model.faction || 'Unknown army'} | Models: ${model.modelCount}`;
     commandEl.textContent = commandText(model.command);
     stateSelect.value = model.state;
 
@@ -72,7 +102,7 @@ function renderCards(models) {
     refreshBtn.addEventListener('click', async () => {
       try {
         const updated = await request(`/api/models/${model.id}/refresh-image`, { method: 'POST' });
-        imageEl.src = displayImageUrl(updated.imageUrl);
+        setModelImage(imageEl, updated.imageUrl);
         setStatus(`Refreshed image for ${updated.name}`);
       } catch (err) {
         if ((err.message || '').toLowerCase().includes('model not found')) {
@@ -88,21 +118,104 @@ function renderCards(models) {
   }
 }
 
+function renderCurrentView() {
+  renderCards(filteredModels());
+}
+
 async function loadModels() {
   try {
     const models = await request('/api/models');
-    renderCards(models);
+    allModels = Array.isArray(models) ? models : [];
+    renderCurrentView();
   } catch (err) {
     setStatus(err.message, true);
   }
 }
 
+function parseArmyListText(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let parsedArmy = '';
+  for (const line of lines) {
+    const armyMatch = line.match(/^(.+?)\s*\[\d+\s*pts\]$/i);
+    if (armyMatch && !line.startsWith('++') && !line.startsWith('--')) {
+      parsedArmy = armyMatch[1].trim();
+      break;
+    }
+  }
+
+  let current = null;
+  const units = [];
+
+  const flushCurrent = () => {
+    if (!current) return;
+    units.push(current);
+    current = null;
+  };
+
+  for (const line of lines) {
+    if (line.startsWith('===') || line.startsWith('---') || line.startsWith('++ ') || line.startsWith('-- ')) {
+      flushCurrent();
+      continue;
+    }
+
+    const withCountMatch = line.match(/^(\d+)\s+(.+?)\s+\[\d+\s*pts\]$/i);
+    const singleMatch = line.match(/^(.+?)\s+\[\d+\s*pts\]$/i);
+
+    if (withCountMatch) {
+      flushCurrent();
+      current = {
+        name: withCountMatch[2].trim(),
+        modelCount: Number(withCountMatch[1]),
+        command: { champion: 0, musician: 0, bannerBearer: 0 }
+      };
+      continue;
+    }
+
+    if (singleMatch && !line.startsWith('[')) {
+      if (singleMatch[1].trim() === parsedArmy) {
+        continue;
+      }
+      flushCurrent();
+      current = {
+        name: singleMatch[1].trim(),
+        modelCount: 1,
+        command: { champion: 0, musician: 0, bannerBearer: 0 }
+      };
+      continue;
+    }
+
+    if (current && line.startsWith('-')) {
+      const lower = line.toLowerCase();
+      if (/musician/.test(lower)) current.command.musician = 1;
+      if (/standard bearer|banner bearer|battle standard bearer|\bbanner\b/.test(lower)) current.command.bannerBearer = 1;
+      if (/champion|preceptor|sergeant/.test(lower)) current.command.champion = 1;
+    }
+  }
+
+  flushCurrent();
+
+  return {
+    parsedArmy,
+    units
+  };
+}
+
 createForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
+  const selectedArmy = armyFilterEl.value;
+  if (!selectedArmy || selectedArmy === 'ALL') {
+    setStatus('Select an army first so this unit is tagged correctly.', true);
+    return;
+  }
+
   const payload = {
     name: document.getElementById('name').value.trim(),
-    faction: document.getElementById('faction').value.trim(),
+    faction: selectedArmy,
     modelCount: Number(document.getElementById('modelCount').value),
     command: {
       champion: Number(document.getElementById('champion').value || 1),
@@ -129,26 +242,51 @@ createForm.addEventListener('submit', async (event) => {
   }
 });
 
-importBtn.addEventListener('click', async () => {
-  let parsed;
-  try {
-    parsed = JSON.parse(importJsonEl.value);
-  } catch {
-    setStatus('Import JSON is invalid', true);
+massImportBtn.addEventListener('click', async () => {
+  const rawText = massImportTextEl.value.trim();
+  if (!rawText) {
+    setStatus('Paste an army list first.', true);
     return;
   }
+
+  const { parsedArmy, units } = parseArmyListText(rawText);
+  if (!units.length) {
+    setStatus('No units found in pasted text.', true);
+    return;
+  }
+
+  const selectedArmy = armyFilterEl.value;
+  const finalArmy = selectedArmy && selectedArmy !== 'ALL' ? selectedArmy : parsedArmy;
+  if (!finalArmy) {
+    setStatus('Select an army from the dropdown first.', true);
+    return;
+  }
+
+  const payload = units.map((unit) => ({
+    name: unit.name,
+    faction: finalArmy,
+    modelCount: unit.modelCount,
+    command: unit.command,
+    state: 'Unbuilt'
+  }));
 
   try {
     const result = await request('/api/models/import', {
       method: 'POST',
-      body: JSON.stringify(parsed)
+      body: JSON.stringify(payload)
     });
-    setStatus(`Imported ${result.created} units`);
-    importJsonEl.value = '';
+    setStatus(`Created ${result.created} units from pasted list. Images are loading in background...`);
+    massImportTextEl.value = '';
+    armyFilterEl.value = finalArmy;
     await loadModels();
+    setTimeout(loadModels, 5000);
   } catch (err) {
     setStatus(err.message, true);
   }
+});
+
+armyFilterEl.addEventListener('change', () => {
+  renderCurrentView();
 });
 
 loadModels();

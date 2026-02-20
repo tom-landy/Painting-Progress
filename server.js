@@ -252,11 +252,56 @@ async function findWarhammerImage(query) {
   return '';
 }
 
+async function findDuckDuckGoImage(query) {
+  try {
+    const bootstrapUrl = `https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`;
+    const bootstrapRes = await fetch(bootstrapUrl, {
+      headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
+    });
+    if (!bootstrapRes.ok) return '';
+    const bootstrapHtml = await bootstrapRes.text();
+
+    const vqdMatch = bootstrapHtml.match(/vqd=['"]([^'"]+)['"]/i) || bootstrapHtml.match(/"vqd":"([^"]+)"/i);
+    const vqd = vqdMatch?.[1];
+    if (!vqd) return '';
+
+    const apiUrl = `https://duckduckgo.com/i.js?l=us-en&o=json&p=1&q=${encodeURIComponent(query)}&vqd=${encodeURIComponent(vqd)}`;
+    const imageRes = await fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'painting-progress-app/1.0 (render)',
+        Referer: 'https://duckduckgo.com/'
+      }
+    });
+    if (!imageRes.ok) return '';
+    const imageJson = await imageRes.json();
+    const results = Array.isArray(imageJson?.results) ? imageJson.results : [];
+
+    for (const result of results) {
+      const candidate = result?.image || result?.thumbnail || '';
+      if (!candidate || typeof candidate !== 'string') continue;
+      try {
+        const parsed = new URL(candidate);
+        if (!['http:', 'https:'].includes(parsed.protocol)) continue;
+        return parsed.toString();
+      } catch {
+        // Ignore malformed URLs.
+      }
+    }
+  } catch {
+    return '';
+  }
+
+  return '';
+}
+
 async function findModelImage(name, faction = '') {
   try {
     for (const query of searchVariants(name, faction)) {
       const warhammerImage = await findWarhammerImage(query);
       if (warhammerImage) return warhammerImage;
+
+      const generalImage = await findDuckDuckGoImage(query);
+      if (generalImage) return generalImage;
 
       const wikiImage = await findWikipediaImage(query);
       if (wikiImage) return wikiImage;

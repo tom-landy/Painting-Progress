@@ -4,7 +4,9 @@ A secure, public-shareable web app for tracking Warhammer model painting progres
 
 ## Features
 
-- Import/upload a list of units and model counts
+- Add units manually with instant save (image lookup happens in background)
+- Global Old World army selector that filters visible units
+- Mass import from pasted Old World Builder text
 - Track model/unit states:
   - `Unbuilt`
   - `Build`
@@ -14,6 +16,7 @@ A secure, public-shareable web app for tracking Warhammer model painting progres
 - Optional command units (Champion, Musician, Banner Bearer)
 - Auto-locate model images via server-side search:
   - Warhammer.com page search + `og:image` extraction
+  - General web image search fallback
   - Wikimedia fallback
 - Security basics for public hosting:
   - `helmet`
@@ -37,21 +40,6 @@ Open [http://localhost:10000](http://localhost:10000)
 3. Render will detect `render.yaml`.
 4. Set `FRONTEND_ORIGIN` if you host frontend separately; leave blank when using the same service URL.
 
-## Import format
+## Mass Import
 
-Use the JSON import textarea in the UI. Example:
-
-```json
-[
-  {
-    "name": "Chaos Space Marines",
-    "faction": "Chaos Space Marines",
-    "modelCount": 10,
-    "command": {
-      "champion": 1,
-      "musician": 0,
-      "bannerBearer": 1
-    }
-  }
-]
-```
+Paste text directly from Old World Builder into the **Mass Import** box and click **Create Units From List**.

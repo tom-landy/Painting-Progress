@@ -11,27 +11,28 @@
       <section class="panel">
         <h1>Painting Progress</h1>
         <p>Track your Warhammer units and publish progress states.</p>
+        <label for="army-filter">Army</label>
+        <select id="army-filter" name="army-filter">
+          <option value="ALL">All Armies</option>
+          <option>Empire of Man</option>
+          <option>Dwarfen Mountain Holds</option>
+          <option>Kingdom of Bretonnia</option>
+          <option>Wood Elf Realms</option>
+          <option>High Elf Realms</option>
+          <option>Orc and Goblin Tribes</option>
+          <option>Warriors of Chaos</option>
+          <option>Beastmen Brayherds</option>
+          <option>Tomb Kings of Khemri</option>
+          <option>Daemons of Chaos</option>
+          <option>Vampire Counts</option>
+          <option>Skaven</option>
+          <option>Dark Elves</option>
+          <option>Ogre Kingdoms</option>
+        </select>
 
         <form id="create-form" class="stack">
           <h2>Add Unit</h2>
           <input id="name" name="name" placeholder="Unit name (e.g. Plague Marines)" required />
-          <select id="faction" name="faction">
-            <option value="">Select Old World Army</option>
-            <option>Empire of Man</option>
-            <option>Dwarfen Mountain Holds</option>
-            <option>Kingdom of Bretonnia</option>
-            <option>Wood Elf Realms</option>
-            <option>High Elf Realms</option>
-            <option>Orc and Goblin Tribes</option>
-            <option>Warriors of Chaos</option>
-            <option>Beastmen Brayherds</option>
-            <option>Tomb Kings of Khemri</option>
-            <option>Daemons of Chaos</option>
-            <option>Vampire Counts</option>
-            <option>Skaven</option>
-            <option>Dark Elves</option>
-            <option>Ogre Kingdoms</option>
-          </select>
           <input id="modelCount" name="modelCount" type="number" min="1" max="500" value="5" required />
           <div class="inline-grid">
             <label>Champion <input id="champion" type="number" min="0" value="1" /></label>
@@ -42,9 +43,9 @@
         </form>
 
         <section class="stack">
-          <h2>Import JSON</h2>
-          <textarea id="import-json" rows="9" placeholder='Paste JSON array here'></textarea>
-          <button id="import-btn" type="button">Import Units</button>
+          <h2>Mass Import (Old World Builder)</h2>
+          <textarea id="mass-import-text" rows="10" placeholder="Paste your full army list text here"></textarea>
+          <button id="mass-import-btn" type="button">Create Units From List</button>
         </section>
 
         <p id="status" class="status"></p>
