@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">No image available</title>
+  <desc id="desc">Fallback image for models without a thumbnail.</desc>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a2230" />
+      <stop offset="100%" stop-color="#0f141d" />
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#g)" />
+  <g fill="#9ba8bb" font-family="Arial, sans-serif" text-anchor="middle">
+    <text x="320" y="160" font-size="24" font-weight="700">No Image Found</text>
+    <text x="320" y="195" font-size="16">Try "Refresh Image" or edit the unit name.</text>
+  </g>
+</svg>

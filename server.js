@@ -16,6 +16,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'models.json');
 
 const states = ['Unbuilt', 'Build', 'Sprayed', 'Undercoated', 'Painted'];
+const allowedImageHosts = new Set(['upload.wikimedia.org', 'images.wikimedia.org']);
 
 const commandSchema = z
   .object({
@@ -85,7 +86,49 @@ async function readModels() {
   const text = await fs.readFile(DATA_FILE, 'utf8');
   try {
     const parsed = JSON.parse(text);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    let hasChanges = false;
+    const normalized = parsed.map((item) => {
+      const model = item && typeof item === 'object' ? item : {};
+      const safeState = states.includes(model.state) ? model.state : 'Unbuilt';
+      const safeCommand = {
+        champion: Number.isInteger(model?.command?.champion) && model.command.champion >= 0 ? model.command.champion : 0,
+        musician: Number.isInteger(model?.command?.musician) && model.command.musician >= 0 ? model.command.musician : 0,
+        bannerBearer:
+          Number.isInteger(model?.command?.bannerBearer) && model.command.bannerBearer >= 0 ? model.command.bannerBearer : 0
+      };
+
+      const normalizedModel = {
+        id: typeof model.id === 'string' && model.id ? model.id : nanoid(),
+        name: typeof model.name === 'string' && model.name ? model.name : 'Unknown Unit',
+        faction: typeof model.faction === 'string' ? model.faction : '',
+        modelCount: Number.isInteger(model.modelCount) && model.modelCount > 0 ? model.modelCount : 1,
+        command: safeCommand,
+        state: safeState,
+        imageUrl: typeof model.imageUrl === 'string' ? model.imageUrl : '',
+        createdAt: typeof model.createdAt === 'string' ? model.createdAt : new Date().toISOString(),
+        updatedAt: typeof model.updatedAt === 'string' ? model.updatedAt : new Date().toISOString()
+      };
+
+      if (
+        normalizedModel.id !== model.id ||
+        normalizedModel.state !== model.state ||
+        normalizedModel.modelCount !== model.modelCount ||
+        normalizedModel.faction !== model.faction ||
+        JSON.stringify(normalizedModel.command) !== JSON.stringify(model.command)
+      ) {
+        hasChanges = true;
+      }
+
+      return normalizedModel;
+    });
+
+    if (hasChanges) {
+      await writeModels(normalized);
+    }
+
+    return normalized;
   } catch {
     return [];
   }
@@ -140,6 +183,44 @@ function toStoredModel(input) {
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get('/api/image-proxy', async (req, res, next) => {
+  try {
+    const rawUrl = typeof req.query.url === 'string' ? req.query.url : '';
+    if (!rawUrl) return res.status(400).json({ error: 'Missing image URL' });
+
+    let target;
+    try {
+      target = new URL(rawUrl);
+    } catch {
+      return res.status(400).json({ error: 'Invalid image URL' });
+    }
+
+    if (!['http:', 'https:'].includes(target.protocol)) {
+      return res.status(400).json({ error: 'Invalid image protocol' });
+    }
+
+    if (!allowedImageHosts.has(target.hostname)) {
+      return res.status(403).json({ error: 'Image host not allowed' });
+    }
+
+    const upstream = await fetch(target.toString(), {
+      headers: { 'User-Agent': 'painting-progress-app/1.0 (render)' }
+    });
+    if (!upstream.ok) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    return res.send(buffer);
+  } catch (err) {
+    return next(err);
+  }
 });
 
 app.get('/api/models', async (_req, res, next) => {

@@ -15,6 +15,11 @@ function commandText(command) {
   return `Champion: ${command.champion}, Musician: ${command.musician}, Banner: ${command.bannerBearer}`;
 }
 
+function displayImageUrl(imageUrl) {
+  if (!imageUrl) return '/no-image.svg';
+  return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+}
+
 async function request(path, options = {}) {
   const res = await fetch(path, {
     headers: { 'Content-Type': 'application/json' },
@@ -43,7 +48,10 @@ function renderCards(models) {
     const refreshBtn = fragment.querySelector('.refresh-image');
 
     card.dataset.id = model.id;
-    imageEl.src = model.imageUrl || 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/No_image_available.svg/640px-No_image_available.svg.png';
+    imageEl.src = displayImageUrl(model.imageUrl);
+    imageEl.addEventListener('error', () => {
+      imageEl.src = '/no-image.svg';
+    });
     nameEl.textContent = model.name;
     metaEl.textContent = `${model.faction || 'Unknown faction'} | Models: ${model.modelCount}`;
     commandEl.textContent = commandText(model.command);
@@ -64,7 +72,7 @@ function renderCards(models) {
     refreshBtn.addEventListener('click', async () => {
       try {
         const updated = await request(`/api/models/${model.id}/refresh-image`, { method: 'POST' });
-        imageEl.src = updated.imageUrl || imageEl.src;
+        imageEl.src = displayImageUrl(updated.imageUrl);
         setStatus(`Refreshed image for ${updated.name}`);
       } catch (err) {
         setStatus(err.message, true);
