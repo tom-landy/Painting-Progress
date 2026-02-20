@@ -61,9 +61,11 @@ function renderCards(models) {
     categoryEl.textContent = `Category: ${model.category || 'Unit'}`;
 
     if ((model.category || 'Unit') === 'Character') {
-      commandEl.textContent = 'Character (no command group)';
+      commandEl.textContent = '';
+      commandEl.style.display = 'none';
     } else {
       commandEl.textContent = commandText(model.command);
+      commandEl.style.display = 'block';
     }
     detailsEl.value = model.details || '';
 

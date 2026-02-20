@@ -64,9 +64,11 @@
 
     <template id="card-template">
       <article class="card">
-        <button class="delete-btn" type="button" aria-label="Delete unit">X</button>
         <div class="card-content">
-          <h3 class="model-name"></h3>
+          <div class="card-head">
+            <h3 class="model-name"></h3>
+            <button class="delete-btn" type="button" aria-label="Delete unit">X</button>
+          </div>
           <p class="muted model-meta"></p>
           <p class="muted category-meta"></p>
           <p class="muted command-meta"></p>
