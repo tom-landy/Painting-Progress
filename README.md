@@ -8,6 +8,7 @@ A secure, public-shareable web app for tracking Warhammer model painting progres
 - Global Old World army selector that filters visible units
 - Mass import from pasted Old World Builder text
 - Unit categories: `Unit` and `Character`
+- Stores and displays unit loadout details (weapons, magic items, upgrades)
 - Track model/unit states:
   - `Unbuilt`
   - `Build`

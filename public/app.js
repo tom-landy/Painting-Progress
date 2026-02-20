@@ -50,6 +50,7 @@ function renderCards(models) {
     const metaEl = fragment.querySelector('.model-meta');
     const categoryEl = fragment.querySelector('.category-meta');
     const commandEl = fragment.querySelector('.command-meta');
+    const detailsEl = fragment.querySelector('.details-text');
     const stateSelect = fragment.querySelector('.state-select');
 
     card.dataset.id = model.id;
@@ -62,6 +63,7 @@ function renderCards(models) {
     } else {
       commandEl.textContent = commandText(model.command);
     }
+    detailsEl.value = model.details || '';
 
     stateSelect.value = model.state;
 
@@ -146,6 +148,7 @@ function parseArmyListText(text) {
         category: currentCategory,
         name: withCountMatch[2].trim(),
         modelCount: Number(withCountMatch[1]),
+        details: '',
         command: { champion: 0, musician: 0, bannerBearer: 0 }
       };
       continue;
@@ -158,16 +161,24 @@ function parseArmyListText(text) {
         category: currentCategory,
         name: singleMatch[1].trim(),
         modelCount: 1,
+        details: '',
         command: { champion: 0, musician: 0, bannerBearer: 0 }
       };
       continue;
     }
 
-    if (current && line.startsWith('-') && current.category !== 'Character') {
-      const lower = line.toLowerCase();
-      if (/musician/.test(lower)) current.command.musician = 1;
-      if (/standard bearer|banner bearer|battle standard bearer|\bbanner\b/.test(lower)) current.command.bannerBearer = 1;
-      if (/champion|preceptor|sergeant/.test(lower)) current.command.champion = 1;
+    if (current && line.startsWith('-')) {
+      const cleanLine = line.replace(/^\-\s*/, '').trim();
+      if (cleanLine) {
+        current.details = current.details ? `${current.details}\n${cleanLine}` : cleanLine;
+      }
+
+      if (current.category !== 'Character') {
+        const lower = line.toLowerCase();
+        if (/musician/.test(lower)) current.command.musician = 1;
+        if (/standard bearer|banner bearer|battle standard bearer|\bbanner\b/.test(lower)) current.command.bannerBearer = 1;
+        if (/champion|preceptor|sergeant/.test(lower)) current.command.champion = 1;
+      }
     }
   }
 
@@ -201,6 +212,7 @@ createForm.addEventListener('submit', async (event) => {
     faction: selectedArmy,
     category,
     modelCount: Number(document.getElementById('modelCount').value),
+    details: document.getElementById('details').value.trim(),
     command:
       category === 'Character'
         ? { champion: 0, musician: 0, bannerBearer: 0 }
@@ -223,6 +235,7 @@ createForm.addEventListener('submit', async (event) => {
     document.getElementById('champion').value = 1;
     document.getElementById('musician').value = 1;
     document.getElementById('bannerBearer').value = 1;
+    document.getElementById('details').value = '';
     syncCategoryUI();
     await loadModels();
   } catch (err) {
@@ -255,6 +268,7 @@ massImportBtn.addEventListener('click', async () => {
     faction: finalArmy,
     category: unit.category,
     modelCount: unit.modelCount,
+    details: unit.details || '',
     command: unit.command,
     state: 'Unbuilt'
   }));

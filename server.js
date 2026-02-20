@@ -31,6 +31,7 @@ const modelInputSchema = z.object({
   faction: z.string().trim().max(120).optional().default(''),
   category: z.enum(categories).optional().default('Unit'),
   modelCount: z.number().int().min(1).max(500),
+  details: z.string().trim().max(4000).optional().default(''),
   command: commandSchema.optional().default({ champion: 1, musician: 1, bannerBearer: 1 }),
   state: z.enum(states).optional().default('Unbuilt')
 });
@@ -119,6 +120,7 @@ async function readModels() {
         faction: typeof model.faction === 'string' ? model.faction : '',
         category: safeCategory,
         modelCount: Number.isInteger(model.modelCount) && model.modelCount > 0 ? model.modelCount : 1,
+        details: typeof model.details === 'string' ? model.details : '',
         command: safeCommand,
         state: safeState,
         createdAt: typeof model.createdAt === 'string' ? model.createdAt : new Date().toISOString(),
@@ -131,6 +133,7 @@ async function readModels() {
         normalizedModel.modelCount !== model.modelCount ||
         normalizedModel.faction !== model.faction ||
         normalizedModel.category !== model.category ||
+        normalizedModel.details !== model.details ||
         JSON.stringify(normalizedModel.command) !== JSON.stringify(model.command)
       ) {
         hasChanges = true;
@@ -156,6 +159,7 @@ function toStoredModel(input) {
     faction: input.faction,
     category: input.category,
     modelCount: input.modelCount,
+    details: input.details,
     command: normalizeCommand(input.category, input.command),
     state: input.state,
     createdAt: new Date().toISOString(),

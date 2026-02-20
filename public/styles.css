@@ -104,6 +104,12 @@ button:hover {
   font-size: 0.9rem;
 }
 
+.details-text {
+  font-size: 0.85rem;
+  line-height: 1.35;
+  resize: vertical;
+}
+
 h1,
 h2,
 h3 {

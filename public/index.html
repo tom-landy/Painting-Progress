@@ -43,6 +43,7 @@
             <label>Musician <input id="musician" type="number" min="0" value="1" /></label>
             <label>Banner <input id="bannerBearer" type="number" min="0" value="1" /></label>
           </div>
+          <textarea id="details" rows="4" placeholder="Weapons, magic items, upgrades (optional)"></textarea>
           <button type="submit">Add Unit</button>
         </form>
 
@@ -68,6 +69,7 @@
           <p class="muted model-meta"></p>
           <p class="muted category-meta"></p>
           <p class="muted command-meta"></p>
+          <textarea class="details-text" rows="5" readonly></textarea>
           <label>
             State
             <select class="state-select">
