@@ -46,6 +46,7 @@ function renderCards(models) {
   for (const model of models) {
     const fragment = template.content.cloneNode(true);
     const card = fragment.querySelector('.card');
+    const deleteBtn = fragment.querySelector('.delete-btn');
     const nameEl = fragment.querySelector('.model-name');
     const metaEl = fragment.querySelector('.model-meta');
     const categoryEl = fragment.querySelector('.category-meta');
@@ -54,6 +55,7 @@ function renderCards(models) {
     const stateSelect = fragment.querySelector('.state-select');
 
     card.dataset.id = model.id;
+    card.dataset.state = model.state;
     nameEl.textContent = model.name;
     metaEl.textContent = `${model.faction || 'Unknown army'} | Models: ${model.modelCount}`;
     categoryEl.textContent = `Category: ${model.category || 'Unit'}`;
@@ -73,7 +75,21 @@ function renderCards(models) {
           method: 'PATCH',
           body: JSON.stringify({ state: stateSelect.value })
         });
+        card.dataset.state = updated.state;
         setStatus(`Updated ${updated.name} to ${updated.state}`);
+      } catch (err) {
+        setStatus(err.message, true);
+      }
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      const confirmed = window.confirm(`Delete ${model.name}?`);
+      if (!confirmed) return;
+
+      try {
+        const deleted = await request(`/api/models/${model.id}`, { method: 'DELETE' });
+        setStatus(`Deleted ${deleted.name}`);
+        await loadModels();
       } catch (err) {
         setStatus(err.message, true);
       }

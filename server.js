@@ -57,7 +57,7 @@ const frontendOrigin = process.env.FRONTEND_ORIGIN;
 app.use(
   cors({
     origin: frontendOrigin ? [frontendOrigin] : true,
-    methods: ['GET', 'POST', 'PATCH'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type']
   })
 );
@@ -235,6 +235,23 @@ app.patch('/api/models/:id/state', async (req, res, next) => {
     await writeModels(models);
 
     return res.json(models[index]);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+app.delete('/api/models/:id', async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    const models = await readModels();
+    const index = models.findIndex((m) => m.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Model not found' });
+    }
+
+    const [removed] = models.splice(index, 1);
+    await writeModels(models);
+    return res.json({ deleted: true, id: removed.id, name: removed.name });
   } catch (err) {
     return next(err);
   }

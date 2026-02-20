@@ -9,6 +9,8 @@ A secure, public-shareable web app for tracking Warhammer model painting progres
 - Mass import from pasted Old World Builder text
 - Unit categories: `Unit` and `Character`
 - Stores and displays unit loadout details (weapons, magic items, upgrades)
+- Delete units directly from each card
+- Color-coded cards by status (`Unbuilt`, `Build`, `Sprayed`, `Undercoated`, `Painted`)
 - Track model/unit states:
   - `Unbuilt`
   - `Build`
