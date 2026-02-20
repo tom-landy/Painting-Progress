@@ -12,6 +12,7 @@ A secure, public-shareable web app for tracking Warhammer model painting progres
 - Delete units directly from each card
 - Color-coded cards by status (`Unbuilt`, `Build`, `Sprayed`, `Undercoated`, `Painted`)
 - Cards are ordered by progress state, with `Painted` entries at the bottom
+- In `All Armies` view, cards are grouped by army with state sections; characters appear before units in each section
 - Track model/unit states:
   - `Unbuilt`
   - `Build`

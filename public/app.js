@@ -17,6 +17,13 @@ const stateOrder = {
   Undercoated: 3,
   Painted: 4
 };
+const orderedStates = ['Unbuilt', 'Build', 'Sprayed', 'Undercoated', 'Painted'];
+const categoryOrder = { Character: 0, Unit: 1 };
+
+function generalPriority(model) {
+  if ((model.category || 'Unit') !== 'Character') return 1;
+  return /\bgeneral\b/i.test(model.details || '') ? 0 : 1;
+}
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -48,73 +55,145 @@ function filteredModels() {
   return [...base].sort((a, b) => {
     const stateDiff = (stateOrder[a.state] ?? 999) - (stateOrder[b.state] ?? 999);
     if (stateDiff !== 0) return stateDiff;
+    const categoryDiff = (categoryOrder[a.category] ?? 99) - (categoryOrder[b.category] ?? 99);
+    if (categoryDiff !== 0) return categoryDiff;
+    const generalDiff = generalPriority(a) - generalPriority(b);
+    if (generalDiff !== 0) return generalDiff;
     return a.name.localeCompare(b.name);
   });
 }
 
-function renderCards(models) {
+function createCardElement(model) {
+  const fragment = template.content.cloneNode(true);
+  const card = fragment.querySelector('.card');
+  const deleteBtn = fragment.querySelector('.delete-btn');
+  const nameEl = fragment.querySelector('.model-name');
+  const metaEl = fragment.querySelector('.model-meta');
+  const categoryEl = fragment.querySelector('.category-meta');
+  const commandEl = fragment.querySelector('.command-meta');
+  const detailsEl = fragment.querySelector('.details-text');
+  const stateSelect = fragment.querySelector('.state-select');
+
+  card.dataset.id = model.id;
+  card.dataset.state = model.state;
+  nameEl.textContent = model.name;
+  metaEl.textContent = `${model.faction || 'Unknown army'} | Models: ${model.modelCount}`;
+  categoryEl.textContent = `Category: ${model.category || 'Unit'}`;
+
+  if ((model.category || 'Unit') === 'Character') {
+    commandEl.textContent = '';
+    commandEl.style.display = 'none';
+  } else {
+    commandEl.textContent = commandText(model.command);
+    commandEl.style.display = 'block';
+  }
+  detailsEl.value = model.details || '';
+
+  stateSelect.value = model.state;
+
+  stateSelect.addEventListener('change', async () => {
+    try {
+      const updated = await request(`/api/models/${model.id}/state`, {
+        method: 'PATCH',
+        body: JSON.stringify({ state: stateSelect.value })
+      });
+      card.dataset.state = updated.state;
+      setStatus(`Updated ${updated.name} to ${updated.state}`);
+      await loadModels();
+    } catch (err) {
+      setStatus(err.message, true);
+    }
+  });
+
+  deleteBtn.addEventListener('click', async () => {
+    const confirmed = window.confirm(`Delete ${model.name}?`);
+    if (!confirmed) return;
+
+    try {
+      const deleted = await request(`/api/models/${model.id}`, { method: 'DELETE' });
+      setStatus(`Deleted ${deleted.name}`);
+      await loadModels();
+    } catch (err) {
+      setStatus(err.message, true);
+    }
+  });
+
+  return fragment;
+}
+
+function renderFlatCards(models) {
+  cardsEl.classList.remove('grouped');
+  cardsEl.innerHTML = '';
+  for (const model of models) {
+    cardsEl.appendChild(createCardElement(model));
+  }
+}
+
+function renderGroupedByArmy(models) {
+  cardsEl.classList.add('grouped');
   cardsEl.innerHTML = '';
 
+  const byArmy = new Map();
   for (const model of models) {
-    const fragment = template.content.cloneNode(true);
-    const card = fragment.querySelector('.card');
-    const deleteBtn = fragment.querySelector('.delete-btn');
-    const nameEl = fragment.querySelector('.model-name');
-    const metaEl = fragment.querySelector('.model-meta');
-    const categoryEl = fragment.querySelector('.category-meta');
-    const commandEl = fragment.querySelector('.command-meta');
-    const detailsEl = fragment.querySelector('.details-text');
-    const stateSelect = fragment.querySelector('.state-select');
+    const army = model.faction || 'Unknown army';
+    if (!byArmy.has(army)) byArmy.set(army, []);
+    byArmy.get(army).push(model);
+  }
 
-    card.dataset.id = model.id;
-    card.dataset.state = model.state;
-    nameEl.textContent = model.name;
-    metaEl.textContent = `${model.faction || 'Unknown army'} | Models: ${model.modelCount}`;
-    categoryEl.textContent = `Category: ${model.category || 'Unit'}`;
+  const armies = [...byArmy.keys()].sort((a, b) => a.localeCompare(b));
+  for (const army of armies) {
+    const section = document.createElement('section');
+    section.className = 'army-section';
 
-    if ((model.category || 'Unit') === 'Character') {
-      commandEl.textContent = '';
-      commandEl.style.display = 'none';
-    } else {
-      commandEl.textContent = commandText(model.command);
-      commandEl.style.display = 'block';
-    }
-    detailsEl.value = model.details || '';
+    const title = document.createElement('h3');
+    title.className = 'army-title';
+    title.textContent = army;
+    section.appendChild(title);
 
-    stateSelect.value = model.state;
-
-    stateSelect.addEventListener('change', async () => {
-      try {
-        const updated = await request(`/api/models/${model.id}/state`, {
-          method: 'PATCH',
-          body: JSON.stringify({ state: stateSelect.value })
+    const armyModels = byArmy.get(army);
+    for (const state of orderedStates) {
+      const stateModels = armyModels
+        .filter((m) => m.state === state)
+        .sort((a, b) => {
+          const categoryDiff = (categoryOrder[a.category] ?? 99) - (categoryOrder[b.category] ?? 99);
+          if (categoryDiff !== 0) return categoryDiff;
+          const generalDiff = generalPriority(a) - generalPriority(b);
+          if (generalDiff !== 0) return generalDiff;
+          return a.name.localeCompare(b.name);
         });
-        card.dataset.state = updated.state;
-        setStatus(`Updated ${updated.name} to ${updated.state}`);
-      } catch (err) {
-        setStatus(err.message, true);
+
+      if (!stateModels.length) continue;
+
+      const stateSection = document.createElement('div');
+      stateSection.className = 'state-section';
+
+      const stateTitle = document.createElement('h4');
+      stateTitle.className = 'state-title';
+      stateTitle.textContent = state;
+      stateSection.appendChild(stateTitle);
+
+      const stateGrid = document.createElement('div');
+      stateGrid.className = 'state-grid';
+      for (const model of stateModels) {
+        stateGrid.appendChild(createCardElement(model));
       }
-    });
 
-    deleteBtn.addEventListener('click', async () => {
-      const confirmed = window.confirm(`Delete ${model.name}?`);
-      if (!confirmed) return;
+      stateSection.appendChild(stateGrid);
+      section.appendChild(stateSection);
+    }
 
-      try {
-        const deleted = await request(`/api/models/${model.id}`, { method: 'DELETE' });
-        setStatus(`Deleted ${deleted.name}`);
-        await loadModels();
-      } catch (err) {
-        setStatus(err.message, true);
-      }
-    });
-
-    cardsEl.appendChild(fragment);
+    cardsEl.appendChild(section);
   }
 }
 
 function renderCurrentView() {
-  renderCards(filteredModels());
+  const selectedArmy = armyFilterEl.value;
+  const models = filteredModels();
+  if (!selectedArmy || selectedArmy === 'ALL') {
+    renderGroupedByArmy(models);
+    return;
+  }
+  renderFlatCards(models);
 }
 
 async function loadModels() {
