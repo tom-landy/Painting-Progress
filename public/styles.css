@@ -120,8 +120,10 @@ button:hover {
 
 .card-content {
   padding: 0.7rem;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.45rem;
+  height: 100%;
 }
 
 .muted {
@@ -134,6 +136,20 @@ button:hover {
   font-size: 0.85rem;
   line-height: 1.35;
   resize: vertical;
+}
+
+.state-wrap {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.state-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
 }
 
 .card[data-state='Unbuilt'] {

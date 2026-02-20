@@ -10,6 +10,13 @@ const categoryEl = document.getElementById('category');
 const commandFieldsEl = document.getElementById('command-fields');
 
 let allModels = [];
+const stateOrder = {
+  Unbuilt: 0,
+  Build: 1,
+  Sprayed: 2,
+  Undercoated: 3,
+  Painted: 4
+};
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -36,8 +43,13 @@ async function request(path, options = {}) {
 
 function filteredModels() {
   const selectedArmy = armyFilterEl.value;
-  if (!selectedArmy || selectedArmy === 'ALL') return allModels;
-  return allModels.filter((model) => model.faction === selectedArmy);
+  const base = !selectedArmy || selectedArmy === 'ALL' ? allModels : allModels.filter((model) => model.faction === selectedArmy);
+
+  return [...base].sort((a, b) => {
+    const stateDiff = (stateOrder[a.state] ?? 999) - (stateOrder[b.state] ?? 999);
+    if (stateDiff !== 0) return stateDiff;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 function renderCards(models) {
