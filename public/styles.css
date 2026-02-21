@@ -195,12 +195,12 @@ button:hover {
   padding: 0.38rem 0.45rem;
 }
 
-.card[data-state='Unbuilt'] {
+.card[data-state='On Sprue'] {
   background: linear-gradient(180deg, #4a1d1d, #271313);
   border-color: #e15c5c;
 }
 
-.card[data-state='Build'] {
+.card[data-state='Built'] {
   background: linear-gradient(180deg, #5a4316, #2f220c);
   border-color: #f0b54a;
 }
@@ -210,12 +210,12 @@ button:hover {
   border-color: #4fc7eb;
 }
 
-.card[data-state='Undercoated'] {
+.card[data-state='Undercoat'] {
   background: linear-gradient(180deg, #34265c, #1f1636);
   border-color: #9d81e8;
 }
 
-.card[data-state='Painted'] {
+.card[data-state='Finished'] {
   background: linear-gradient(180deg, #1e4a2f, #12301f);
   border-color: #55da81;
 }
