@@ -15,7 +15,13 @@ const isProduction = process.env.NODE_ENV === 'production';
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'models.json');
 
-const states = ['Unbuilt', 'Build', 'Sprayed', 'Undercoated', 'Painted'];
+const states = ['On Sprue', 'Built', 'Sprayed', 'Undercoat', 'Finished'];
+const legacyStateMap = {
+  Unbuilt: 'On Sprue',
+  Build: 'Built',
+  Undercoated: 'Undercoat',
+  Painted: 'Finished'
+};
 const categories = ['Unit', 'Character'];
 
 const commandSchema = z
@@ -34,7 +40,7 @@ const modelInputSchema = z.object({
   progressCount: z.number().int().min(0).max(500).optional(),
   details: z.string().trim().max(4000).optional().default(''),
   command: commandSchema.optional().default({ champion: 1, musician: 1, bannerBearer: 1 }),
-  state: z.enum(states).optional().default('Unbuilt')
+  state: z.enum(states).optional().default('On Sprue')
 });
 
 const importSchema = z.array(modelInputSchema).min(1).max(1000);
@@ -112,7 +118,8 @@ async function readModels() {
     const normalized = parsed.map((item) => {
       const model = item && typeof item === 'object' ? item : {};
       const safeCategory = categories.includes(model.category) ? model.category : 'Unit';
-      const safeState = states.includes(model.state) ? model.state : 'Unbuilt';
+      const mappedState = legacyStateMap[model.state] || model.state;
+      const safeState = states.includes(mappedState) ? mappedState : 'On Sprue';
       const safeCommand = normalizeCommand(safeCategory, model.command);
 
       const normalizedModel = {
@@ -266,7 +273,7 @@ app.patch('/api/models/:id/state', async (req, res, next) => {
     }
 
     if (parsed.data.state !== undefined) {
-      if (model.category === 'Unit' && parsed.data.state !== 'Unbuilt' && model.progressCount < model.modelCount) {
+      if (model.category === 'Unit' && parsed.data.state !== 'On Sprue' && model.progressCount < model.modelCount) {
         return res
           .status(400)
           .json({ error: `Set progress count to ${model.modelCount}/${model.modelCount} before marking this unit as ${parsed.data.state}.` });

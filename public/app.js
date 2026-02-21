@@ -11,13 +11,13 @@ const commandFieldsEl = document.getElementById('command-fields');
 
 let allModels = [];
 const stateOrder = {
-  Unbuilt: 0,
-  Build: 1,
+  'On Sprue': 0,
+  Built: 1,
   Sprayed: 2,
-  Undercoated: 3,
-  Painted: 4
+  Undercoat: 3,
+  Finished: 4
 };
-const orderedStates = ['Unbuilt', 'Build', 'Sprayed', 'Undercoated', 'Painted'];
+const orderedStates = ['On Sprue', 'Built', 'Sprayed', 'Undercoat', 'Finished'];
 const categoryOrder = { Character: 0, Unit: 1 };
 
 function generalPriority(model) {
@@ -409,7 +409,7 @@ massImportBtn.addEventListener('click', async () => {
     progressCount: unit.category === 'Character' ? unit.modelCount : 0,
     details: unit.details || '',
     command: unit.command,
-    state: 'Unbuilt'
+    state: 'On Sprue'
   }));
 
   try {
