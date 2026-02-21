@@ -73,6 +73,8 @@ function createCardElement(model) {
   const commandEl = fragment.querySelector('.command-meta');
   const detailsEl = fragment.querySelector('.details-text');
   const stateSelect = fragment.querySelector('.state-select');
+  const progressLabelEl = fragment.querySelector('.progress-label');
+  const progressInputEl = fragment.querySelector('.progress-count');
 
   card.dataset.id = model.id;
   card.dataset.state = model.state;
@@ -83,23 +85,49 @@ function createCardElement(model) {
   if ((model.category || 'Unit') === 'Character') {
     commandEl.textContent = '';
     commandEl.style.display = 'none';
+    progressLabelEl.style.display = 'none';
+    progressInputEl.style.display = 'none';
   } else {
     commandEl.textContent = commandText(model.command);
     commandEl.style.display = 'block';
+    progressLabelEl.style.display = 'inline';
+    progressInputEl.style.display = 'block';
   }
   detailsEl.value = model.details || '';
 
   stateSelect.value = model.state;
+  progressInputEl.max = String(model.modelCount);
+  progressInputEl.min = '0';
+  progressInputEl.value = String(model.progressCount ?? 0);
 
   stateSelect.addEventListener('change', async () => {
     try {
       const updated = await request(`/api/models/${model.id}/state`, {
         method: 'PATCH',
-        body: JSON.stringify({ state: stateSelect.value })
+        body: JSON.stringify({
+          state: stateSelect.value,
+          progressCount: Number(progressInputEl.value || 0)
+        })
       });
       card.dataset.state = updated.state;
+      progressInputEl.value = String(updated.progressCount ?? progressInputEl.value);
       setStatus(`Updated ${updated.name} to ${updated.state}`);
       await loadModels();
+    } catch (err) {
+      setStatus(err.message, true);
+    }
+  });
+
+  progressInputEl.addEventListener('change', async () => {
+    if ((model.category || 'Unit') === 'Character') return;
+    try {
+      const nextValue = Number(progressInputEl.value || 0);
+      const updated = await request(`/api/models/${model.id}/state`, {
+        method: 'PATCH',
+        body: JSON.stringify({ progressCount: nextValue })
+      });
+      progressInputEl.value = String(updated.progressCount ?? nextValue);
+      setStatus(`Updated ${updated.name} count to ${updated.progressCount}/${updated.modelCount}`);
     } catch (err) {
       setStatus(err.message, true);
     }
@@ -321,6 +349,7 @@ createForm.addEventListener('submit', async (event) => {
     faction: selectedArmy,
     category,
     modelCount: Number(document.getElementById('modelCount').value),
+    progressCount: category === 'Character' ? Number(document.getElementById('modelCount').value) : 0,
     details: document.getElementById('details').value.trim(),
     command:
       category === 'Character'
@@ -377,6 +406,7 @@ massImportBtn.addEventListener('click', async () => {
     faction: finalArmy,
     category: unit.category,
     modelCount: unit.modelCount,
+    progressCount: unit.category === 'Character' ? unit.modelCount : 0,
     details: unit.details || '',
     command: unit.command,
     state: 'Unbuilt'

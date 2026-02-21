@@ -31,6 +31,7 @@ const modelInputSchema = z.object({
   faction: z.string().trim().max(120).optional().default(''),
   category: z.enum(categories).optional().default('Unit'),
   modelCount: z.number().int().min(1).max(500),
+  progressCount: z.number().int().min(0).max(500).optional(),
   details: z.string().trim().max(4000).optional().default(''),
   command: commandSchema.optional().default({ champion: 1, musician: 1, bannerBearer: 1 }),
   state: z.enum(states).optional().default('Unbuilt')
@@ -120,6 +121,14 @@ async function readModels() {
         faction: typeof model.faction === 'string' ? model.faction : '',
         category: safeCategory,
         modelCount: Number.isInteger(model.modelCount) && model.modelCount > 0 ? model.modelCount : 1,
+        progressCount:
+          safeCategory === 'Character'
+            ? Number.isInteger(model.modelCount) && model.modelCount > 0
+              ? model.modelCount
+              : 1
+            : Number.isInteger(model.progressCount) && model.progressCount >= 0
+              ? Math.min(model.progressCount, Number.isInteger(model.modelCount) && model.modelCount > 0 ? model.modelCount : 1)
+              : 0,
         details: typeof model.details === 'string' ? model.details : '',
         command: safeCommand,
         state: safeState,
@@ -131,6 +140,7 @@ async function readModels() {
         normalizedModel.id !== model.id ||
         normalizedModel.state !== model.state ||
         normalizedModel.modelCount !== model.modelCount ||
+        normalizedModel.progressCount !== model.progressCount ||
         normalizedModel.faction !== model.faction ||
         normalizedModel.category !== model.category ||
         normalizedModel.details !== model.details ||
@@ -153,12 +163,20 @@ async function readModels() {
 }
 
 function toStoredModel(input) {
+  const progressCount =
+    input.category === 'Character'
+      ? input.modelCount
+      : Number.isInteger(input.progressCount)
+        ? Math.max(0, Math.min(input.progressCount, input.modelCount))
+        : 0;
+
   return {
     id: nanoid(),
     name: input.name,
     faction: input.faction,
     category: input.category,
     modelCount: input.modelCount,
+    progressCount,
     details: input.details,
     command: normalizeCommand(input.category, input.command),
     state: input.state,
@@ -219,7 +237,15 @@ app.post('/api/models/import', async (req, res, next) => {
 app.patch('/api/models/:id/state', async (req, res, next) => {
   try {
     const id = req.params.id;
-    const parsed = z.object({ state: z.enum(states) }).safeParse(req.body);
+    const parsed = z
+      .object({
+        state: z.enum(states).optional(),
+        progressCount: z.number().int().min(0).max(500).optional()
+      })
+      .refine((value) => value.state !== undefined || value.progressCount !== undefined, {
+        message: 'No update provided'
+      })
+      .safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Invalid state payload' });
     }
@@ -230,7 +256,24 @@ app.patch('/api/models/:id/state', async (req, res, next) => {
       return res.status(404).json({ error: 'Model not found' });
     }
 
-    models[index].state = parsed.data.state;
+    const model = models[index];
+    if (model.category === 'Unit' && parsed.data.progressCount !== undefined) {
+      model.progressCount = Math.min(parsed.data.progressCount, model.modelCount);
+    }
+
+    if (model.category === 'Character') {
+      model.progressCount = model.modelCount;
+    }
+
+    if (parsed.data.state !== undefined) {
+      if (model.category === 'Unit' && parsed.data.state !== 'Unbuilt' && model.progressCount < model.modelCount) {
+        return res
+          .status(400)
+          .json({ error: `Set progress count to ${model.modelCount}/${model.modelCount} before marking this unit as ${parsed.data.state}.` });
+      }
+      model.state = parsed.data.state;
+    }
+
     models[index].updatedAt = new Date().toISOString();
     await writeModels(models);
 
